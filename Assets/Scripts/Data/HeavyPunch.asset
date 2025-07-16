@@ -1,0 +1,32 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8d725d59f78910344b5bcf594193c714, type: 3}
+  m_Name: HeavyPunch
+  m_EditorClassIdentifier: 
+  attackName: 
+  attackType: 1
+  damage: 0
+  range: 0
+  startupTime: 0
+  activeTime: 0
+  recoveryTime: 0
+  knockbackForce: 0
+  hitstun: 0
+  blockstun: 0
+  energyGain: 0
+  energyCost: 0
+  canCombo: 0
+  comboWindow: 0
+  comboOptions: []
+  attackSound: {fileID: 0}
+  hitEffect: {fileID: 0}
+  blockEffect: {fileID: 0}

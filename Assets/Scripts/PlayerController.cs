@@ -29,20 +29,8 @@ public class PlayerController : MonoBehaviour
         rb = GetComponent<Rigidbody2D>();
         animator = GetComponent<Animator>();
         spriteRenderer = GetComponent<SpriteRenderer>();
-         Health health = GetComponent<Health>();
-    HealthBar healthBar = FindObjectOfType<HealthBar>();
-    
-    if (health != null && healthBar != null) {
-        health.OnHealthChanged.AddListener(healthBar.SetHealth);
-        healthBar.SetMaxHealth(health.maxHealth);
-    }
-    Stamina stamina = GetComponent<Stamina>();
-    StaminaBar staminaBar = FindObjectOfType<StaminaBar>();
-    
-    if (stamina != null && staminaBar != null) {
-        stamina.OnStaminaChanged.AddListener(staminaBar.SetStamina);
-        staminaBar.SetMaxStamina(stamina.maxStamina);
-    }
+
+
         // 如果没有设置groundCheck，创建一个
         if (groundCheck == null)
         {
