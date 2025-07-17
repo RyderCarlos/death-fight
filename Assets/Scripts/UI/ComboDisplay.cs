@@ -494,6 +494,34 @@
           return currentDisplayCount;
       }
 
+      /// <summary>
+      /// 设置目标连击系统
+      /// </summary>
+      public void SetTargetComboSystem(ComboSystem targetComboSystem)
+      {
+          // 取消之前的事件订阅
+          if (comboSystem != null)
+          {
+              comboSystem.OnComboStart -= OnComboStart;
+              comboSystem.OnComboExtend -= OnComboExtend;
+              comboSystem.OnComboComplete -= OnComboComplete;
+              comboSystem.OnComboReset -= OnComboReset;
+              comboSystem.OnComboSequenceComplete -= OnComboSequenceComplete;
+          }
+
+          comboSystem = targetComboSystem;
+
+          // 注册新的事件
+          if (comboSystem != null)
+          {
+              comboSystem.OnComboStart += OnComboStart;
+              comboSystem.OnComboExtend += OnComboExtend;
+              comboSystem.OnComboComplete += OnComboComplete;
+              comboSystem.OnComboReset += OnComboReset;
+              comboSystem.OnComboSequenceComplete += OnComboSequenceComplete;
+          }
+      }
+
       void OnDestroy()
       {
           // 取消事件注册

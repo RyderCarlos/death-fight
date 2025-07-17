@@ -189,7 +189,20 @@
       bool HasSufficientEnergy(AttackData attackData)
       {
           EnergySystem energySystem = GetComponent<EnergySystem>();
-          if (energySystem != null && energySystem.CurrentEnergy < attackData.energyCost)
+          if (energySystem == null) return true;
+          
+          // 如果是特殊技能，使用特殊检查
+          if (attackData.attackType == AttackType.特殊技能)
+          {
+              if (!energySystem.CanUseSpecialSkill())
+              {
+                  Debug.Log($"特殊技能不可用：能量 {energySystem.CurrentEnergy}/{energySystem.SpecialSkillThreshold}");
+                  return false;
+              }
+          }
+          
+          // 常规能量检查
+          if (energySystem.CurrentEnergy < attackData.energyCost)
           {
               Debug.Log($"能量不足，需要 {attackData.energyCost}，当前 {energySystem.CurrentEnergy}");
               return false;
@@ -297,7 +310,15 @@
           EnergySystem energySystem = GetComponent<EnergySystem>();
           if (energySystem != null)
           {
-              energySystem.ConsumeEnergy(attackData.energyCost);
+              // 如果是特殊技能，使用特殊技能消耗方法
+              if (attackData.attackType == AttackType.特殊技能)
+              {
+                  energySystem.TryUseSpecialSkill(attackData.energyCost);
+              }
+              else
+              {
+                  energySystem.ConsumeEnergy(attackData.energyCost);
+              }
           }
       }
 

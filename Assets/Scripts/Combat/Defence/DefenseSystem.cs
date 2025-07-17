@@ -31,6 +31,10 @@
       public float counterAttackWindow = 0.5f;
       [Tooltip("反击伤害倍数")]
       public float counterAttackMultiplier = 1.5f;
+      [Tooltip("完美格挡时间窗口")]
+      public float perfectBlockWindow = 0.1f;
+      [Tooltip("完美格挡伤害减免")]
+      public float perfectBlockReduction = 0.8f;
 
       [Header("当前状态")]
       [SerializeField] private bool isBlocking = false;
@@ -38,6 +42,8 @@
       [SerializeField] private bool isInvincible = false;
       [SerializeField] private bool canDodge = true;
       [SerializeField] private bool canCounterAttack = false;
+      [SerializeField] private bool isPerfectBlockWindow = false;
+      [SerializeField] private float blockStartTime = 0f;
 
       [Header("组件引用")]
       private Animator animator;
@@ -48,10 +54,12 @@
       [SerializeField] private int totalBlocks = 0;
       [SerializeField] private int totalDodges = 0;
       [SerializeField] private int successfulCounters = 0;
+      [SerializeField] private int perfectBlocks = 0;
 
       // 事件系统
       public System.Action<DamageInfo> OnBlock;
       public System.Action<DamageInfo> OnFailedBlock;
+      public System.Action<DamageInfo> OnPerfectBlock;
       public System.Action OnDodgeStart;
       public System.Action OnDodgeEnd;
       public System.Action<AttackData> OnCounterAttack;
@@ -59,6 +67,7 @@
       private Coroutine blockStunCoroutine;
       private Coroutine dodgeCoroutine;
       private Coroutine counterWindowCoroutine;
+      private Coroutine perfectBlockCoroutine;
 
       void Start()
       {
@@ -133,6 +142,10 @@
           if (isBlocking) return;
 
           isBlocking = true;
+          blockStartTime = Time.time;
+
+          // 开始完美格挡窗口
+          StartPerfectBlockWindow();
 
           // 播放格挡动画
           if (animator != null)
@@ -144,6 +157,28 @@
       }
 
       /// <summary>
+      /// 开始完美格挡窗口
+      /// </summary>
+      void StartPerfectBlockWindow()
+      {
+          if (perfectBlockCoroutine != null)
+          {
+              StopCoroutine(perfectBlockCoroutine);
+          }
+          perfectBlockCoroutine = StartCoroutine(PerfectBlockWindowCoroutine());
+      }
+
+      /// <summary>
+      /// 完美格挡窗口协程
+      /// </summary>
+      IEnumerator PerfectBlockWindowCoroutine()
+      {
+          isPerfectBlockWindow = true;
+          yield return new WaitForSeconds(perfectBlockWindow);
+          isPerfectBlockWindow = false;
+      }
+
+      /// <summary>
       /// 停止格挡
       /// </summary>
       public void StopBlock()
@@ -151,6 +186,14 @@
           if (!isBlocking) return;
 
           isBlocking = false;
+          isPerfectBlockWindow = false;
+
+          // 停止完美格挡协程
+          if (perfectBlockCoroutine != null)
+          {
+              StopCoroutine(perfectBlockCoroutine);
+              perfectBlockCoroutine = null;
+          }
 
           // 停止格挡动画
           if (animator != null)
@@ -306,6 +349,16 @@
 
           totalBlocks++;
 
+          // 检查是否为完美格挡
+          bool isPerfectBlock = isPerfectBlockWindow;
+          float damageReduction = isPerfectBlock ? perfectBlockReduction : blockDamageReduction;
+          
+          if (isPerfectBlock)
+          {
+              perfectBlocks++;
+              Debug.Log("完美格挡！");
+          }
+
           // 消耗格挡能量
           if (energySystem != null)
           {
@@ -313,27 +366,37 @@
           }
 
           // 计算格挡后的伤害
-          damageInfo.finalDamage = damageInfo.damage * blockDamageReduction;
+          damageInfo.finalDamage = damageInfo.damage * damageReduction;
           damageInfo.isBlocked = true;
 
           // 播放格挡特效
           PlayBlockEffect(damageInfo);
 
-          // 格挡硬直
-          StartBlockStun(damageInfo.attackData.blockstun);
+          // 格挡硬直（完美格挡减少硬直时间）
+          float blockStunTime = isPerfectBlock ? damageInfo.attackData.blockstun * 0.5f : damageInfo.attackData.blockstun;
+          StartBlockStun(blockStunTime);
 
-          // 获得格挡能量
+          // 获得格挡能量（完美格挡获得更多能量）
           if (energySystem != null)
           {
-              energySystem.GainEnergy(blockEnergyGain);
+              int energyGain = isPerfectBlock ? blockEnergyGain * 2 : blockEnergyGain;
+              energySystem.GainEnergy(energyGain);
           }
 
           // 开启反击窗口
           StartCounterAttackWindow();
 
-          OnBlock?.Invoke(damageInfo);
+          // 触发相应事件
+          if (isPerfectBlock)
+          {
+              OnPerfectBlock?.Invoke(damageInfo);
+          }
+          else
+          {
+              OnBlock?.Invoke(damageInfo);
+          }
 
-          Debug.Log($"成功格挡攻击，减少伤害至 {damageInfo.finalDamage}");
+          Debug.Log($"{(isPerfectBlock ? "完美" : "成功")}格挡攻击，减少伤害至 {damageInfo.finalDamage}");
       }
 
       /// <summary>
@@ -449,9 +512,9 @@
       /// <summary>
       /// 获取防御统计信息
       /// </summary>
-      public (int blocks, int dodges, int counters) GetDefenseStats()
+      public (int blocks, int dodges, int counters, int perfectBlocks) GetDefenseStats()
       {
-          return (totalBlocks, totalDodges, successfulCounters);
+          return (totalBlocks, totalDodges, successfulCounters, perfectBlocks);
       }
 
       /// <summary>
@@ -462,6 +525,7 @@
           totalBlocks = 0;
           totalDodges = 0;
           successfulCounters = 0;
+          perfectBlocks = 0;
       }
 
       /// <summary>

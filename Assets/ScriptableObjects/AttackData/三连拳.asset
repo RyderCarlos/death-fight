@@ -1,0 +1,32 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 14be8f94731471145b9f71d0dd5acf90, type: 3}
+  m_Name: "\u4E09\u8FDE\u62F3"
+  m_EditorClassIdentifier: 
+  comboName: "\u4E09\u8FDE\u62F3"
+  comboDescription: 
+  difficulty: 0
+  attackSequence: 000000000000000000000000
+  timingWindows:
+  - 0
+  - 0
+  comboTimeLimit: 3
+  damageBonus: 1.5
+  finisherDamage: 25
+  energyBonus: 20
+  comboEffect: {fileID: 0}
+  finisherEffect: {fileID: 0}
+  comboSound: {fileID: 0}
+  finisherSound: {fileID: 0}
+  minimumComboCount: 2
+  requireContinuousHits: 1
+  allowedMisses: 0

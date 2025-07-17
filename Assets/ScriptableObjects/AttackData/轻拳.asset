@@ -1,0 +1,34 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8d725d59f78910344b5bcf594193c714, type: 3}
+  m_Name: "\u8F7B\u62F3"
+  m_EditorClassIdentifier: 
+  attackName: "\u8F7B\u62F3"
+  attackType: 0
+  damage: 10
+  range: 1.5
+  startupTime: 0.1
+  activeTime: 0.2
+  recoveryTime: 0.3
+  knockbackForce: 5
+  hitstun: 0.3
+  blockstun: 0.2
+  energyGain: 5
+  energyCost: 0
+  canCombo: 1
+  comboWindow: 0.5
+  comboOptions: []
+  attackSound: {fileID: 0}
+  hitEffect: {fileID: 0}
+  blockEffect: {fileID: 0}
+  animationTrigger: Attack
+  animationStateName: 

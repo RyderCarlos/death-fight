@@ -15,6 +15,10 @@ public class EnergySystem : MonoBehaviour
     public int energyOnReceiveDamage = 15; // 受到伤害获得的能量
     public int energyOnBlock = 8;          // 格挡成功获得的能量
     
+    [Header("特殊技能设置")]
+    public int specialSkillThreshold = 50; // 特殊技能所需最低能量
+    public bool canUseSpecialSkills = true;
+    
     private bool canRegenerate = true;
     private Coroutine regenCoroutine;
     private Coroutine regenDelayCoroutine;
@@ -23,6 +27,7 @@ public class EnergySystem : MonoBehaviour
     public System.Action<int, int> OnEnergyChanged; // current, max
     public System.Action OnEnergyFull;
     public System.Action OnEnergyEmpty;
+    public System.Action<bool> OnSpecialSkillAvailable; // 特殊技能可用状态变化
     
     void Start()
     {
@@ -76,6 +81,8 @@ public class EnergySystem : MonoBehaviour
         if (amount <= 0) return;
         
         int oldEnergy = currentEnergy;
+        bool wasSpecialAvailableBefore = CanUseSpecialSkill();
+        
         currentEnergy = Mathf.Min(maxEnergy, currentEnergy + amount);
         
         if (currentEnergy != oldEnergy)
@@ -86,6 +93,13 @@ public class EnergySystem : MonoBehaviour
             {
                 OnEnergyFull?.Invoke();
             }
+            
+            // 检查特殊技能可用性变化
+            bool isSpecialAvailableNow = CanUseSpecialSkill();
+            if (wasSpecialAvailableBefore != isSpecialAvailableNow)
+            {
+                OnSpecialSkillAvailable?.Invoke(isSpecialAvailableNow);
+            }
         }
     }
     
@@ -95,6 +109,8 @@ public class EnergySystem : MonoBehaviour
         if (currentEnergy < amount) return false;
         
         int oldEnergy = currentEnergy;
+        bool wasSpecialAvailableBefore = CanUseSpecialSkill();
+        
         currentEnergy = Mathf.Max(0, currentEnergy - amount);
         
         if (currentEnergy != oldEnergy)
@@ -104,6 +120,13 @@ public class EnergySystem : MonoBehaviour
             if (currentEnergy <= 0)
             {
                 OnEnergyEmpty?.Invoke();
+            }
+            
+            // 检查特殊技能可用性变化
+            bool isSpecialAvailableNow = CanUseSpecialSkill();
+            if (wasSpecialAvailableBefore != isSpecialAvailableNow)
+            {
+                OnSpecialSkillAvailable?.Invoke(isSpecialAvailableNow);
             }
         }
         
@@ -159,6 +182,35 @@ public class EnergySystem : MonoBehaviour
         return currentEnergy >= amount;
     }
     
+    public bool CanUseSpecialSkill()
+    {
+        return canUseSpecialSkills && currentEnergy >= specialSkillThreshold;
+    }
+    
+    public bool TryUseSpecialSkill(int energyCost = 50)
+    {
+        if (!CanUseSpecialSkill() || currentEnergy < energyCost)
+        {
+            Debug.Log($"无法使用特殊技能：能量不足 {currentEnergy}/{energyCost}，或特殊技能未启用");
+            return false;
+        }
+        
+        return ConsumeEnergy(energyCost);
+    }
+    
+    public void SetSpecialSkillEnabled(bool enabled)
+    {
+        bool wasAvailable = CanUseSpecialSkill();
+        canUseSpecialSkills = enabled;
+        bool isAvailableNow = CanUseSpecialSkill();
+        
+        if (wasAvailable != isAvailableNow)
+        {
+            OnSpecialSkillAvailable?.Invoke(isAvailableNow);
+        }
+    }
+    
     public int CurrentEnergy => currentEnergy;
     public int MaxEnergy => maxEnergy;
+    public int SpecialSkillThreshold => specialSkillThreshold;
 }
