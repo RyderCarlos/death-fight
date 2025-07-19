@@ -96,7 +96,7 @@
           if (Input.GetKeyDown(counterKey))
           {
               // 执行反击（这里使用轻拳作为默认反击）
-              defenseSystem.TryCounterAttack(AttackType.轻拳);
+              defenseSystem.TryCounterAttack();
           }
       }
 

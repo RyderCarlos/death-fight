@@ -90,7 +90,7 @@ public class EnergyHUD : MonoBehaviour
         // 设置主能量槽
         if (mainEnergyBar != null && energySystem != null)
         {
-            mainEnergyBar.SetEnergySystem(energySystem);
+            mainEnergyBar.Initialize(energySystem);
         }
         
         // 设置按键提示

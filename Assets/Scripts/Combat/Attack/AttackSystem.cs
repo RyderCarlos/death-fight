@@ -1,470 +1,310 @@
-  using UnityEngine;
-  using System.Collections;
-  using System.Collections.Generic;
-
-  public class AttackSystem : MonoBehaviour
-  {
-      [Header("攻击数据配置")]
-      [Tooltip("可用的攻击数据数组")]
-      public AttackData[] availableAttacks;
-      [Tooltip("默认攻击数据")]
-      public AttackData defaultAttack;
-
-      [Header("组件引用")]
-      private AttackDetector attackDetector;
-      private Animator animator;
-      private AudioSource audioSource;
-      private Rigidbody2D rb;
-
-      [Header("攻击状态")]
-      [SerializeField] private bool isAttacking = false;
-      [SerializeField] private bool canAttack = true;
-      [SerializeField] private AttackData currentAttack;
-      [SerializeField] private float attackCooldown = 0f;
-
-      [Header("攻击设置")]
-      [Tooltip("全局攻击冷却时间")]
-      public float globalCooldown = 0.1f;
-      [Tooltip("是否可以取消攻击")]
-      public bool canCancelAttack = false;
-
-      [Header("调试信息")]
-      [SerializeField] private int totalAttacksPerformed = 0;
-      [SerializeField] private int totalHitsLanded = 0;
-
-      // 事件系统
-      public System.Action<AttackData> OnAttackStart;
-      public System.Action<AttackData> OnAttackEnd;
-      public System.Action<AttackData> OnAttackCancel;
-      public System.Action<GameObject, AttackData> OnHitTarget;
-
-      // 攻击队列系统
-      private Queue<AttackType> attackQueue = new Queue<AttackType>();
-      private bool useAttackQueue = true;
-
-      void Start()
-      {
-          InitializeComponents();
-          SetupEventListeners();
-      }
-
-      void Update()
-      {
-          UpdateCooldowns();
-          ProcessAttackQueue();
-      }
-
-      /// <summary>
-      /// 初始化组件引用
-      /// </summary>
-      void InitializeComponents()
-      {
-          attackDetector = GetComponent<AttackDetector>();
-          animator = GetComponent<Animator>();
-          audioSource = GetComponent<AudioSource>();
-          rb = GetComponent<Rigidbody2D>();
-
-          if (attackDetector == null)
-          {
-              Debug.LogWarning($"{gameObject.name} 缺少 AttackDetector 组件");
-          }
-
-          if (animator == null)
-          {
-              Debug.LogWarning($"{gameObject.name} 缺少 Animator 组件");
-          }
-      }
-
-      /// <summary>
-      /// 设置事件监听
-      /// </summary>
-      void SetupEventListeners()
-      {
-          if (attackDetector != null)
-          {
-              attackDetector.OnHit += HandleHit;
-          }
-      }
-
-      /// <summary>
-      /// 更新冷却时间
-      /// </summary>
-      void UpdateCooldowns()
-      {
-          if (attackCooldown > 0)
-          {
-              attackCooldown -= Time.deltaTime;
-              if (attackCooldown <= 0)
-              {
-                  canAttack = true;
-              }
-          }
-      }
-
-      /// <summary>
-      /// 处理攻击队列
-      /// </summary>
-      void ProcessAttackQueue()
-      {
-          if (!useAttackQueue || attackQueue.Count == 0 || !canAttack || isAttacking)
-              return;
-
-          AttackType nextAttack = attackQueue.Dequeue();
-          TryAttack(nextAttack);
-      }
-
-      /// <summary>
-      /// 尝试执行攻击
-      /// </summary>
-      public bool TryAttack(AttackType attackType)
-      {
-          if (!CanPerformAttack()) return false;
-
-          AttackData attackData = GetAttackData(attackType);
-          if (attackData == null)
-          {
-              Debug.LogWarning($"找不到攻击类型 {attackType} 的数据");
-              return false;
-          }
-
-          // 检查能量是否足够
-          if (!HasSufficientEnergy(attackData)) return false;
-
-          StartAttack(attackData);
-          return true;
-      }
-
-      /// <summary>
-      /// 添加攻击到队列
-      /// </summary>
-      public void QueueAttack(AttackType attackType)
-      {
-          if (useAttackQueue)
-          {
-              attackQueue.Enqueue(attackType);
-          }
-          else
-          {
-              TryAttack(attackType);
-          }
-      }
-
-      /// <summary>
-      /// 检查是否可以执行攻击
-      /// </summary>
-      bool CanPerformAttack()
-      {
-          if (!canAttack)
-          {
-              Debug.Log("当前无法攻击：冷却中");
-              return false;
-          }
-
-          if (isAttacking && !canCancelAttack)
-          {
-              Debug.Log("当前无法攻击：正在攻击中");
-              return false;
-          }
-
-          return true;
-      }
-
-      /// <summary>
-      /// 获取攻击数据
-      /// </summary>
-      AttackData GetAttackData(AttackType attackType)
-      {
-          foreach (AttackData attack in availableAttacks)
-          {
-              if (attack.attackType == attackType)
-                  return attack;
-          }
-
-          return defaultAttack;
-      }
-
-      /// <summary>
-      /// 检查能量是否足够
-      /// </summary>
-      bool HasSufficientEnergy(AttackData attackData)
-      {
-          EnergySystem energySystem = GetComponent<EnergySystem>();
-          if (energySystem == null) return true;
-          
-          // 如果是特殊技能，使用特殊检查
-          if (attackData.attackType == AttackType.特殊技能)
-          {
-              if (!energySystem.CanUseSpecialSkill())
-              {
-                  Debug.Log($"特殊技能不可用：能量 {energySystem.CurrentEnergy}/{energySystem.SpecialSkillThreshold}");
-                  return false;
-              }
-          }
-          
-          // 常规能量检查
-          if (energySystem.CurrentEnergy < attackData.energyCost)
-          {
-              Debug.Log($"能量不足，需要 {attackData.energyCost}，当前 {energySystem.CurrentEnergy}");
-              return false;
-          }
-          return true;
-      }
-
-      /// <summary>
-      /// 开始攻击
-      /// </summary>
-      void StartAttack(AttackData attackData)
-      {
-          // 如果正在攻击且可以取消，先取消当前攻击
-          if (isAttacking && canCancelAttack)
-          {
-              CancelCurrentAttack();
-          }
-
-          currentAttack = attackData;
-          isAttacking = true;
-          canAttack = false;
-          totalAttacksPerformed++;
-
-          // 播放动画
-          PlayAttackAnimation(attackData);
-
-          // 播放音效
-          PlayAttackSound(attackData);
-
-          // 消耗能量
-          ConsumeEnergy(attackData);
-
-          OnAttackStart?.Invoke(attackData);
-
-          Debug.Log($"开始攻击：{attackData.attackName}");
-
-          StartCoroutine(AttackSequence(attackData));
-      }
-
-      /// <summary>
-      /// 攻击序列协程
-      /// </summary>
-      IEnumerator AttackSequence(AttackData attackData)
-      {
-          // 前摇时间
-          yield return new WaitForSeconds(attackData.startupTime);
-
-          // 开始攻击检测
-          if (attackDetector != null)
-          {
-              attackDetector.StartDetection(attackData);
-          }
-
-          // 攻击持续时间
-          yield return new WaitForSeconds(attackData.activeTime);
-
-          // 停止检测
-          if (attackDetector != null)
-          {
-              attackDetector.StopDetection();
-          }
-
-          // 后摇时间
-          yield return new WaitForSeconds(attackData.recoveryTime);
-
-          EndAttack();
-      }
-
-      /// <summary>
-      /// 播放攻击动画
-      /// </summary>
-      void PlayAttackAnimation(AttackData attackData)
-      {
-          if (animator != null)
-          {
-              if (!string.IsNullOrEmpty(attackData.animationTrigger))
-              {
-                  animator.SetTrigger(attackData.animationTrigger);
-              }
-              else
-              {
-                  animator.SetTrigger("Attack");
-              }
-
-              animator.SetInteger("AttackType", (int)attackData.attackType);
-          }
-      }
-
-      /// <summary>
-      /// 播放攻击音效
-      /// </summary>
-      void PlayAttackSound(AttackData attackData)
-      {
-          if (audioSource != null && attackData.attackSound != null)
-          {
-              audioSource.PlayOneShot(attackData.attackSound);
-          }
-      }
-
-      /// <summary>
-      /// 消耗能量
-      /// </summary>
-      void ConsumeEnergy(AttackData attackData)
-      {
-          EnergySystem energySystem = GetComponent<EnergySystem>();
-          if (energySystem != null)
-          {
-              // 如果是特殊技能，使用特殊技能消耗方法
-              if (attackData.attackType == AttackType.特殊技能)
-              {
-                  energySystem.TryUseSpecialSkill(attackData.energyCost);
-              }
-              else
-              {
-                  energySystem.ConsumeEnergy(attackData.energyCost);
-              }
-          }
-      }
-
-      /// <summary>
-      /// 结束攻击
-      /// </summary>
-      void EndAttack()
-      {
-          isAttacking = false;
-          attackCooldown = globalCooldown;
-
-          OnAttackEnd?.Invoke(currentAttack);
-
-          Debug.Log($"攻击结束：{currentAttack.attackName}");
-
-          currentAttack = null;
-      }
-
-      /// <summary>
-      /// 取消当前攻击
-      /// </summary>
-      public void CancelCurrentAttack()
-      {
-          if (!isAttacking) return;
-
-          StopAllCoroutines();
-
-          if (attackDetector != null)
-          {
-              attackDetector.StopDetection();
-          }
-
-          OnAttackCancel?.Invoke(currentAttack);
-
-          isAttacking = false;
-          canAttack = true;
-
-          Debug.Log($"取消攻击：{currentAttack.attackName}");
-
-          currentAttack = null;
-      }
-
-      /// <summary>
-      /// 处理击中目标
-      /// </summary>
-      void HandleHit(GameObject target, AttackData attackData)
-      {
-          totalHitsLanded++;
-
-          // 创建伤害信息
-          DamageInfo damageInfo = CreateDamageInfo(target, attackData);
-
-          // 获取目标的健康系统和防御系统
-          HealthSystem targetHealth = target.GetComponent<HealthSystem>();
-          DefenseSystem targetDefense = target.GetComponent<DefenseSystem>();
-
-          if (targetHealth != null)
-          {
-              // 检查是否被格挡
-              if (targetDefense != null && targetDefense.IsBlocking())
-              {
-                  damageInfo.isBlocked = true;
-                  targetDefense.HandleBlock(damageInfo);
-              }
-              else
-              {
-                  targetHealth.TakeDamage(damageInfo);
-              }
-          }
-
-          // 获得能量
-          GainEnergyFromHit(attackData);
-
-          OnHitTarget?.Invoke(target, attackData);
-
-          Debug.Log($"击中目标 {target.name}，造成伤害 {damageInfo.finalDamage}");
-      }
-
-      /// <summary>
-      /// 创建伤害信息
-      /// </summary>
-      DamageInfo CreateDamageInfo(GameObject target, AttackData attackData)
-      {
-          DamageInfo damageInfo = new DamageInfo
-          {
-              damage = attackData.damage,
-              attacker = gameObject,
-              attackData = attackData,
-              hitPosition = target.transform.position
-          };
-
-          damageInfo.CalculateFinalDamage();
-          return damageInfo;
-      }
-
-      /// <summary>
-      /// 从击中获得能量
-      /// </summary>
-      void GainEnergyFromHit(AttackData attackData)
-      {
-          EnergySystem energySystem = GetComponent<EnergySystem>();
-          if (energySystem != null)
-          {
-              energySystem.GainEnergy(attackData.energyGain);
-          }
-      }
-
-      /// <summary>
-      /// 设置攻击队列开关
-      /// </summary>
-      public void SetUseAttackQueue(bool use)
-      {
-          useAttackQueue = use;
-          if (!use)
-          {
-              attackQueue.Clear();
-          }
-      }
-
-      /// <summary>
-      /// 获取攻击统计信息
-      /// </summary>
-      public (int attacks, int hits) GetAttackStats()
-      {
-          return (totalAttacksPerformed, totalHitsLanded);
-      }
-
-      /// <summary>
-      /// 重置攻击统计
-      /// </summary>
-      public void ResetAttackStats()
-      {
-          totalAttacksPerformed = 0;
-          totalHitsLanded = 0;
-      }
-
-      // 属性访问器
-      public bool IsAttacking => isAttacking;
-      public bool CanAttack => canAttack;
-      public AttackData CurrentAttack => currentAttack;
-
-      void OnDestroy()
-      {
-          if (attackDetector != null)
-          {
-              attackDetector.OnHit -= HandleHit;
-          }
-      }
-  }
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+using System;
+
+public class AttackSystem : MonoBehaviour
+{
+    [Header("攻击设置")]
+    public AttackData[] availableAttacks;
+    public float globalCooldown = 0.1f;
+    public bool canCancelAttack = false;
+    
+    [Header("组件引用")]
+    public Transform attackPoint;
+    
+    // 内部状态
+    private bool isAttacking = false;
+    private bool canAttack = true;
+    private Queue<AttackData> attackQueue = new Queue<AttackData>();
+    private AttackData currentAttack;
+    private Coroutine currentAttackCoroutine;
+    
+    // 组件引用
+    private Animator animator;
+    private EnergySystem energySystem;
+    private ComboSystem comboSystem;
+    
+    // 事件
+    public event Action<AttackData> OnAttackStart;
+    public event Action<AttackData> OnAttackEnd;
+    public event Action<GameObject, AttackData> OnHitTarget;
+    public event Action<AttackData> OnAttackCancel;
+    
+    // 统计
+    [Header("统计信息")]
+    public int totalAttacks = 0;
+    public int successfulHits = 0;
+    
+    void Start()
+    {
+        // 获取组件
+        animator = GetComponent<Animator>();
+        energySystem = GetComponent<EnergySystem>();
+        comboSystem = GetComponent<ComboSystem>();
+        
+        // 自动创建攻击点
+        if (attackPoint == null)
+        {
+            GameObject attackPointObj = new GameObject("AttackPoint");
+            attackPointObj.transform.SetParent(transform);
+            attackPointObj.transform.localPosition = Vector3.right;
+            attackPoint = attackPointObj.transform;
+        }
+    }
+    
+    void Update()
+    {
+        ProcessAttackQueue();
+    }
+    
+    public bool TryAttack(AttackType attackType)
+    {
+        AttackData attackData = GetAttackData(attackType);
+        if (attackData == null) return false;
+        
+        // 检查是否可以攻击
+        if (!CanPerformAttack(attackData)) return false;
+        
+        // 添加到攻击队列
+        attackQueue.Enqueue(attackData);
+        return true;
+    }
+    
+    bool CanPerformAttack(AttackData attackData)
+    {
+        // 能量检查
+        if (energySystem != null && energySystem.GetCurrentEnergy() < attackData.energyCost)
+        {
+            Debug.Log("能量不足，无法发动攻击");
+            return false;
+        }
+        
+        // 冷却检查
+        if (!canAttack)
+        {
+            return false;
+        }
+        
+        return true;
+    }
+    
+    void ProcessAttackQueue()
+    {
+        if (attackQueue.Count > 0 && !isAttacking)
+        {
+            AttackData nextAttack = attackQueue.Dequeue();
+            ExecuteAttack(nextAttack);
+        }
+    }
+    
+    void ExecuteAttack(AttackData attackData)
+    {
+        if (currentAttackCoroutine != null)
+        {
+            StopCoroutine(currentAttackCoroutine);
+        }
+        
+        currentAttackCoroutine = StartCoroutine(AttackSequence(attackData));
+    }
+    
+    IEnumerator AttackSequence(AttackData attackData)
+    {
+        isAttacking = true;
+        canAttack = false;
+        currentAttack = attackData;
+        totalAttacks++;
+        
+        // 消耗能量
+        if (energySystem != null)
+        {
+            energySystem.ConsumeEnergy(attackData.energyCost);
+        }
+        
+        // 触发攻击开始事件
+        OnAttackStart?.Invoke(attackData);
+        
+        // 播放动画
+        if (animator != null && !string.IsNullOrEmpty(attackData.animationTrigger))
+        {
+            animator.SetTrigger(attackData.animationTrigger);
+        }
+        
+        // 播放音效
+        if (attackData.attackSound != null)
+        {
+            AudioSource.PlayClipAtPoint(attackData.attackSound, transform.position);
+        }
+        
+        // 前摇阶段
+        yield return new WaitForSeconds(attackData.startupTime);
+        
+        // 判定阶段
+        float activeTimer = 0f;
+        bool hasHit = false;
+        
+        while (activeTimer < attackData.activeTime)
+        {
+            // 执行攻击检测
+            if (!hasHit) // 防止一次攻击多次命中同一目标
+            {
+                hasHit = PerformAttackDetection(attackData);
+            }
+            
+            activeTimer += Time.deltaTime;
+            yield return null;
+        }
+        
+        // 后摇阶段
+        yield return new WaitForSeconds(attackData.recoveryTime);
+        
+        // 攻击结束
+        OnAttackEnd?.Invoke(attackData);
+        isAttacking = false;
+        currentAttack = null;
+        
+        // 全局冷却
+        yield return new WaitForSeconds(globalCooldown);
+        canAttack = true;
+    }
+    
+    bool PerformAttackDetection(AttackData attackData)
+    {
+        Collider2D[] hits;
+        
+        if (attackData.useCircleDetection)
+        {
+            hits = Physics2D.OverlapCircleAll(
+                attackPoint.position,
+                attackData.attackRange
+            );
+        }
+        else
+        {
+            hits = Physics2D.OverlapBoxAll(
+                attackPoint.position,
+                new Vector2(attackData.attackRange, attackData.attackWidth),
+                0f
+            );
+        }
+        
+        bool hitTarget = false;
+        foreach (Collider2D hit in hits)
+        {
+            if (hit.gameObject != gameObject) // 不攻击自己
+            {
+                HealthSystem targetHealth = hit.GetComponent<HealthSystem>();
+                if (targetHealth != null)
+                {
+                    // 创建伤害信息
+                    DamageInfo damageInfo = CreateDamageInfo(attackData);
+                    
+                    // 应用伤害
+                    targetHealth.TakeDamage(damageInfo);
+                    
+                    // 触发命中事件
+                    OnHitTarget?.Invoke(hit.gameObject, attackData);
+                    
+                    // 获得能量
+                    if (energySystem != null)
+                    {
+                        energySystem.GainEnergy(attackData.energyGain);
+                    }
+                    
+                    // 更新连击
+                    if (comboSystem != null)
+                    {
+                        comboSystem.ExtendCombo();
+                    }
+                    
+                    successfulHits++;
+                    hitTarget = true;
+                    
+                    // 播放命中音效
+                    if (attackData.hitSound != null)
+                    {
+                        AudioSource.PlayClipAtPoint(attackData.hitSound, hit.transform.position);
+                    }
+                }
+            }
+        }
+        
+        return hitTarget;
+    }
+    
+    DamageInfo CreateDamageInfo(AttackData attackData)
+    {
+        DamageInfo damageInfo = new DamageInfo();
+        damageInfo.damage = attackData.damage;
+        damageInfo.attacker = gameObject;
+        damageInfo.attackType = attackData.attackType;
+        damageInfo.attackName = attackData.name;
+        damageInfo.knockbackForce = attackData.knockbackForce;
+        damageInfo.knockbackDirection = transform.right;
+        
+        // 应用连击倍数
+        if (comboSystem != null)
+        {
+            damageInfo.damageMultiplier = comboSystem.GetDamageMultiplier();
+        }
+        
+        // 暴击判断（10%概率）
+        if (UnityEngine.Random.Range(0f, 1f) < 0.1f)
+        {
+            damageInfo.isCritical = true;
+        }
+        
+        damageInfo.CalculateFinalDamage();
+        return damageInfo;
+    }
+    
+    AttackData GetAttackData(AttackType attackType)
+    {
+        foreach (AttackData data in availableAttacks)
+        {
+            if (data.attackType == attackType)
+            {
+                return data;
+            }
+        }
+        return null;
+    }
+    
+    public void CancelCurrentAttack()
+    {
+        if (isAttacking && canCancelAttack && currentAttackCoroutine != null)
+        {
+            StopCoroutine(currentAttackCoroutine);
+            OnAttackCancel?.Invoke(currentAttack);
+            isAttacking = false;
+            canAttack = true;
+            currentAttack = null;
+        }
+    }
+    
+    // 调试绘制
+    void OnDrawGizmosSelected()
+    {
+        if (attackPoint != null && currentAttack != null)
+        {
+            Gizmos.color = Color.red;
+            if (currentAttack.useCircleDetection)
+            {
+                Gizmos.DrawWireSphere(attackPoint.position, currentAttack.attackRange);
+            }
+            else
+            {
+                Gizmos.DrawWireCube(
+                    attackPoint.position,
+                    new Vector3(currentAttack.attackRange, currentAttack.attackWidth, 0)
+                );
+            }
+        }
+    }
+    
+    // Public method for checking if character can attack
+    public bool CanAttack()
+    {
+        return canAttack && !isAttacking;
+    }
+}

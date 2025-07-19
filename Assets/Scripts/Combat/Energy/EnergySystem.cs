@@ -1,216 +1,105 @@
-// EnergySystem.cs
 using UnityEngine;
-using System.Collections;
+using System;
 
 public class EnergySystem : MonoBehaviour
 {
     [Header("能量设置")]
-    public int maxEnergy = 100;
-    public int currentEnergy = 0;
-    public float energyRegenRate = 5f;     // 每秒恢复的能量
-    public float energyRegenDelay = 2f;    // 使用技能后多久开始恢复能量
+    public float maxEnergy = 100f;
+    public float currentEnergy;
+    public float energyRegenRate = 5f;
+    public bool autoRegeneration = true;
     
-    [Header("能量获得设置")]
-    public int energyOnHit = 10;           // 攻击命中获得的能量
-    public int energyOnReceiveDamage = 15; // 受到伤害获得的能量
-    public int energyOnBlock = 8;          // 格挡成功获得的能量
-    
-    [Header("特殊技能设置")]
-    public int specialSkillThreshold = 50; // 特殊技能所需最低能量
-    public bool canUseSpecialSkills = true;
-    
-    private bool canRegenerate = true;
-    private Coroutine regenCoroutine;
-    private Coroutine regenDelayCoroutine;
+    [Header("特殊技能")]
+    public float specialSkillThreshold = 50f;
+    public float specialSkillCooldown = 10f;
+    private float lastSpecialSkillTime;
     
     // 事件
-    public System.Action<int, int> OnEnergyChanged; // current, max
-    public System.Action OnEnergyFull;
-    public System.Action OnEnergyEmpty;
-    public System.Action<bool> OnSpecialSkillAvailable; // 特殊技能可用状态变化
+    public event Action<int, int> OnEnergyChanged;
+    public event Action<bool> OnSpecialSkillAvailable;
+    public event Action OnEnergyFull;
+    public event Action OnEnergyEmpty;
     
     void Start()
     {
-        currentEnergy = 0;
-        OnEnergyChanged?.Invoke(currentEnergy, maxEnergy);
-        
-        StartEnergyRegeneration();
-        
-        // 订阅其他系统的事件
-        HealthSystem health = GetComponent<HealthSystem>();
-        if (health != null)
+        currentEnergy = maxEnergy;
+    }
+    
+    void Update()
+    {
+        if (autoRegeneration && currentEnergy < maxEnergy)
         {
-            health.OnTakeDamage += OnTakeDamage;
-        }
-        
-        DefenseSystem defense = GetComponent<DefenseSystem>();
-        if (defense != null)
-        {
-            defense.OnBlock += OnBlock;
-        }
-        
-        AttackSystem attack = GetComponent<AttackSystem>();
-        if (attack != null)
-        {
-            attack.OnAttackStart += OnAttackStart;
+            GainEnergy(energyRegenRate * Time.deltaTime);
         }
     }
     
-    void StartEnergyRegeneration()
+    public void GainEnergy(float amount)
     {
-        if (regenCoroutine == null)
-        {
-            regenCoroutine = StartCoroutine(EnergyRegenerationCoroutine());
-        }
-    }
-    
-    IEnumerator EnergyRegenerationCoroutine()
-    {
-        while (true)
-        {
-            if (canRegenerate && currentEnergy < maxEnergy)
-            {
-                GainEnergy(Mathf.RoundToInt(energyRegenRate * Time.deltaTime));
-            }
-            yield return null;
-        }
-    }
-    
-    public void GainEnergy(int amount)
-    {
-        if (amount <= 0) return;
-        
-        int oldEnergy = currentEnergy;
-        bool wasSpecialAvailableBefore = CanUseSpecialSkill();
-        
+        float oldEnergy = currentEnergy;
         currentEnergy = Mathf.Min(maxEnergy, currentEnergy + amount);
         
         if (currentEnergy != oldEnergy)
         {
-            OnEnergyChanged?.Invoke(currentEnergy, maxEnergy);
+            OnEnergyChanged?.Invoke(Mathf.RoundToInt(currentEnergy), Mathf.RoundToInt(maxEnergy));
+            CheckSpecialSkillAvailability();
             
             if (currentEnergy >= maxEnergy)
-            {
                 OnEnergyFull?.Invoke();
-            }
-            
-            // 检查特殊技能可用性变化
-            bool isSpecialAvailableNow = CanUseSpecialSkill();
-            if (wasSpecialAvailableBefore != isSpecialAvailableNow)
-            {
-                OnSpecialSkillAvailable?.Invoke(isSpecialAvailableNow);
-            }
         }
     }
     
-    public bool ConsumeEnergy(int amount)
+    public void ConsumeEnergy(float amount)
     {
-        if (amount <= 0) return true;
-        if (currentEnergy < amount) return false;
-        
-        int oldEnergy = currentEnergy;
-        bool wasSpecialAvailableBefore = CanUseSpecialSkill();
-        
+        float oldEnergy = currentEnergy;
         currentEnergy = Mathf.Max(0, currentEnergy - amount);
         
         if (currentEnergy != oldEnergy)
         {
-            OnEnergyChanged?.Invoke(currentEnergy, maxEnergy);
+            OnEnergyChanged?.Invoke(Mathf.RoundToInt(currentEnergy), Mathf.RoundToInt(maxEnergy));
+            CheckSpecialSkillAvailability();
             
             if (currentEnergy <= 0)
-            {
                 OnEnergyEmpty?.Invoke();
-            }
-            
-            // 检查特殊技能可用性变化
-            bool isSpecialAvailableNow = CanUseSpecialSkill();
-            if (wasSpecialAvailableBefore != isSpecialAvailableNow)
-            {
-                OnSpecialSkillAvailable?.Invoke(isSpecialAvailableNow);
-            }
-        }
-        
-        // 暂停能量恢复
-        StopEnergyRegeneration();
-        
-        return true;
-    }
-    
-    void StopEnergyRegeneration()
-    {
-        canRegenerate = false;
-        
-        if (regenDelayCoroutine != null)
-        {
-            StopCoroutine(regenDelayCoroutine);
-        }
-        
-        regenDelayCoroutine = StartCoroutine(EnergyRegenDelayCoroutine());
-    }
-    
-    IEnumerator EnergyRegenDelayCoroutine()
-    {
-        yield return new WaitForSeconds(energyRegenDelay);
-        canRegenerate = true;
-    }
-    
-    void OnTakeDamage(DamageInfo damageInfo)
-    {
-        if (!damageInfo.isBlocked)
-        {
-            GainEnergy(energyOnReceiveDamage);
         }
     }
     
-    void OnBlock(DamageInfo damageInfo)
+    public float GetCurrentEnergy()
     {
-        GainEnergy(energyOnBlock);
-    }
-    
-    void OnAttackStart(AttackData attackData)
-    {
-        // 攻击命中的能量在AttackSystem中通过GainEnergy方法获得
-    }
-    
-    public float GetEnergyPercentage()
-    {
-        return (float)currentEnergy / maxEnergy;
-    }
-    
-    public bool HasEnergy(int amount)
-    {
-        return currentEnergy >= amount;
+        return currentEnergy;
     }
     
     public bool CanUseSpecialSkill()
     {
-        return canUseSpecialSkills && currentEnergy >= specialSkillThreshold;
+        return currentEnergy >= specialSkillThreshold && 
+               Time.time - lastSpecialSkillTime >= specialSkillCooldown;
     }
     
-    public bool TryUseSpecialSkill(int energyCost = 50)
+    public bool UseSpecialSkill(float energyCost)
     {
-        if (!CanUseSpecialSkill() || currentEnergy < energyCost)
+        if (CanUseSpecialSkill() && currentEnergy >= energyCost)
         {
-            Debug.Log($"无法使用特殊技能：能量不足 {currentEnergy}/{energyCost}，或特殊技能未启用");
-            return false;
+            ConsumeEnergy(energyCost);
+            lastSpecialSkillTime = Time.time;
+            return true;
         }
-        
-        return ConsumeEnergy(energyCost);
+        return false;
     }
     
-    public void SetSpecialSkillEnabled(bool enabled)
+    public void SetEnergy(float amount)
     {
-        bool wasAvailable = CanUseSpecialSkill();
-        canUseSpecialSkills = enabled;
-        bool isAvailableNow = CanUseSpecialSkill();
-        
-        if (wasAvailable != isAvailableNow)
-        {
-            OnSpecialSkillAvailable?.Invoke(isAvailableNow);
-        }
+        currentEnergy = Mathf.Clamp(amount, 0, maxEnergy);
+        OnEnergyChanged?.Invoke(Mathf.RoundToInt(currentEnergy), Mathf.RoundToInt(maxEnergy));
+        CheckSpecialSkillAvailability();
     }
     
-    public int CurrentEnergy => currentEnergy;
-    public int MaxEnergy => maxEnergy;
-    public int SpecialSkillThreshold => specialSkillThreshold;
+    public float GetEnergyPercentage()
+    {
+        return currentEnergy / maxEnergy;
+    }
+    
+    private void CheckSpecialSkillAvailability()
+    {
+        bool wasAvailable = currentEnergy >= specialSkillThreshold;
+        OnSpecialSkillAvailable?.Invoke(wasAvailable);
+    }
 }

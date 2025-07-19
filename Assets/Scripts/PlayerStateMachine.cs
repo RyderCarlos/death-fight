@@ -1,81 +1,73 @@
 using UnityEngine;
-public enum PlayerState
-{
-    Idle,
-    Walking,
-    Jumping,
-    Falling,
-    Crouching,
-    Attacking
-}
 
 public class PlayerStateMachine : MonoBehaviour
 {
     [Header("当前状态")]
     public PlayerState currentState = PlayerState.Idle;
-    private PlayerState previousState;
     
-    private PlayerController playerController;
     private Animator animator;
+    private PlayerController playerController;
+    
+    // 状态枚举
+    public enum PlayerState
+    {
+        Idle,
+        Walking,
+        Jumping,
+        Falling,
+        Crouching,
+        Attacking,
+        Blocking,
+        Dodging,
+        Hurt,
+        Dead
+    }
     
     void Start()
     {
-        playerController = GetComponent<PlayerController>();
         animator = GetComponent<Animator>();
+        playerController = GetComponent<PlayerController>();
     }
     
     void Update()
     {
-        CheckStateTransitions();
+        UpdateState();
+    }
+    
+    void UpdateState()
+    {
+        PlayerState newState = DetermineNewState();
         
-        if (currentState != previousState)
+        if (newState != currentState)
         {
-            OnStateEnter(currentState);
-            previousState = currentState;
+            ChangeState(newState);
         }
     }
     
-    void CheckStateTransitions()
+    PlayerState DetermineNewState()
     {
-        // 根据玩家状态切换
-        if (playerController.isGrounded)
-        {
-            if (playerController.crouchInput)
-            {
-                ChangeState(PlayerState.Crouching);
-            }
-            else if (Mathf.Abs(playerController.horizontalInput) > 0.1f)
-            {
-                ChangeState(PlayerState.Walking);
-            }
-            else
-            {
-                ChangeState(PlayerState.Idle);
-            }
-        }
-        else
-        {
-            if (playerController.rb.velocity.y > 0.1f)
-            {
-                ChangeState(PlayerState.Jumping);
-            }
-            else if (playerController.rb.velocity.y < -0.1f)
-            {
-                ChangeState(PlayerState.Falling);
-            }
-        }
+        // 状态优先级判断
+        if (currentState == PlayerState.Dead)
+            return PlayerState.Dead;
+            
+        if (currentState == PlayerState.Hurt)
+            return PlayerState.Hurt; // 由外部系统控制退出
+            
+        if (currentState == PlayerState.Attacking)
+            return PlayerState.Attacking; // 由攻击系统控制退出
+            
+        // 其他状态判断逻辑...
+        return PlayerState.Idle;
     }
     
-    void ChangeState(PlayerState newState)
+    public void ChangeState(PlayerState newState)
     {
-        if (currentState != newState)
-        {
-            OnStateExit(currentState);
-            currentState = newState;
-        }
+        ExitState(currentState);
+        currentState = newState;
+        EnterState(newState);
     }
     
-    void OnStateEnter(PlayerState state)
+    void EnterState(PlayerState state)
     {
         switch (state)
         {
@@ -83,22 +75,18 @@ public class PlayerStateMachine : MonoBehaviour
                 animator.SetTrigger("Idle");
                 break;
             case PlayerState.Walking:
-                animator.SetTrigger("Walk");
                 break;
             case PlayerState.Jumping:
                 animator.SetTrigger("Jump");
                 break;
-            case PlayerState.Falling:
-                animator.SetTrigger("Fall");
+            case PlayerState.Attacking:
                 break;
-            case PlayerState.Crouching:
-                animator.SetTrigger("Crouch");
-                break;
+            // 其他状态...
         }
     }
     
-    void OnStateExit(PlayerState state)
+    void ExitState(PlayerState state)
     {
-        // 处理状态退出逻辑
+        // 状态退出处理
     }
 }

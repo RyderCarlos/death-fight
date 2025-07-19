@@ -114,7 +114,7 @@
           {
               var input = inputBuffer[i];
 
-              if (!input.processed && attackSystem != null && attackSystem.CanAttack)
+              if (!input.processed && attackSystem != null && attackSystem.CanAttack())
               {
                   if (ExecuteAttack(input.attackType))
                   {

@@ -91,7 +91,7 @@
           foreach (var collider in colliders)
           {
               HealthSystem healthSystem = collider.GetComponent<HealthSystem>();
-              if (healthSystem != null && healthSystem.IsAlive)
+              if (healthSystem != null && healthSystem.IsAlive())
               {
                   PickupBy(healthSystem);
                   break;
@@ -148,7 +148,7 @@
                   return Mathf.RoundToInt(healthSystem.MaxHealth * healPercentage);
 
               case HealType.完全恢复:
-                  return healthSystem.MaxHealth - healthSystem.CurrentHealth;
+                  return Mathf.RoundToInt(healthSystem.MaxHealth - healthSystem.CurrentHealth);
 
               default:
                   return healAmount;

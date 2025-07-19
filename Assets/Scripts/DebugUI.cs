@@ -10,9 +10,9 @@ public class DebugUI : MonoBehaviour
     {
         if (debugText != null && playerController != null)
         {
-            debugText.text = $"Speed: {playerController.rb.velocity.x:F1}\n" +
+            debugText.text = $"Speed: {playerController.rb2d.velocity.x:F1}\n" +
                            $"Grounded: {playerController.isGrounded}\n" +
-                           $"Velocity Y: {playerController.rb.velocity.y:F1}";
+                           $"Velocity Y: {playerController.rb2d.velocity.y:F1}";
         }
     }
 }

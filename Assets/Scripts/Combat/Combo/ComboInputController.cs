@@ -367,7 +367,7 @@
           if (!showComboHints || comboHintUI == null) return;
 
           // 根据当前连击状态显示提示
-          bool shouldShowHint = comboSystem != null && comboSystem.IsInCombo;
+          bool shouldShowHint = comboSystem != null && comboSystem.IsInCombo();
 
           if (comboHintUI.activeSelf != shouldShowHint)
           {
